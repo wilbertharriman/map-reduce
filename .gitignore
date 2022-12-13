@@ -1,0 +1,9 @@
+# macOS dir file
+.DS_Store
+
+# IntelliJ files
+.idea
+
+# build, distribute, and bins
+build
+cmake-build-*
