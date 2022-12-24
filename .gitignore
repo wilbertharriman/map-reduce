@@ -7,3 +7,16 @@
 # build, distribute, and bins
 build
 cmake-build-*
+CMakeFiles/
+
+testcases/
+
+run.sh
+
+map_reduce
+
+Makefile
+
+CMakeCache.txt
+
+cmake_install.cmake
