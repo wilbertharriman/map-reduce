@@ -36,7 +36,8 @@ namespace MapReduce
         int num_workers;
 
         MapperTask *getTaskFor(const int worker_id);
-        const int KILL_SIGNAL = 0;
+        const int DONE = 0;
+        const int JOB = 1;
     };
 }
 

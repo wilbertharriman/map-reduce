@@ -15,23 +15,6 @@ void MapReduce::Scheduler::start() {
     terminateWorkers();
 }
 
-MapReduce::Scheduler::MapperTask* MapReduce::Scheduler::getTaskFor(const int worker_id) {
-    if (tasks.empty())
-        return nullptr;
-
-    for (auto it = tasks.begin(); it != tasks.end(); ++it) {
-        if ((*it)->node_id == worker_id) {
-            MapperTask *task = *it;
-            tasks.erase(it);
-            return task;
-        }
-    }
-
-    MapperTask* task = tasks.front();
-    tasks.pop_front();
-    return task;
-}
-
 void MapReduce::Scheduler::createTasks() {
     // open file
     std::ifstream locality_file(locality_config_filename);
@@ -57,11 +40,11 @@ void MapReduce::Scheduler::dispatchTasks() {
             int message[2];
 
             if (task_to_dispatch == nullptr) {
-                message[0] = KILL_SIGNAL;
-                message[1] = 0;
+                message[0] = DONE;
+                message[1] = DONE;
                 MPI_Send(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
             } else {
-                message[0] = 1;
+                message[0] = JOB;
                 message[1] = task_to_dispatch->chunk_id;
                 MPI_Send(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
                 delete task_to_dispatch;
@@ -73,12 +56,27 @@ void MapReduce::Scheduler::dispatchTasks() {
 void MapReduce::Scheduler::terminateWorkers() {
     for (int worker_id = 0; worker_id < num_workers; ++worker_id) {
         int message[2];
-        message[0] = KILL_SIGNAL;
-        message[1] = 0;
+        message[0] = DONE;
+        message[1] = DONE;
         MPI_Request request;
 
         MPI_Isend(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
     }
 }
 
+MapReduce::Scheduler::MapperTask* MapReduce::Scheduler::getTaskFor(const int worker_id) {
+    if (tasks.empty())
+        return nullptr;
 
+    for (auto it = tasks.begin(); it != tasks.end(); ++it) {
+        if ((*it)->node_id == worker_id) {
+            MapperTask *task = *it;
+            tasks.erase(it);
+            return task;
+        }
+    }
+
+    MapperTask* task = tasks.front();
+    tasks.pop_front();
+    return task;
+}

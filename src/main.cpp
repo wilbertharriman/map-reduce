@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
         Scheduler *scheduler = new MapReduce::Scheduler(LOCALITY_CONFIG_FILENAME, cluster_size - 1);
         scheduler->start();
     } else {
-        Worker *worker = new MapReduce::Worker(NETWORK_DELAY, INPUT_FILENAME, CHUNK_SIZE, node_id, cluster_size - 1);
+        Worker *worker = new MapReduce::Worker(NUM_REDUCER, NETWORK_DELAY, INPUT_FILENAME, CHUNK_SIZE, node_id, cluster_size - 1);
         worker->start();
     }
 
