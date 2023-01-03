@@ -18,7 +18,7 @@ namespace MapReduce
 
     public:
 //        TODO: LOGGER
-        Scheduler(const char *locality_config_filename, int num_workers);
+        Scheduler(const char *locality_config_filename, const int num_workers, const int scheduler_id);
         void start();
     private:
         class MapperTask {
@@ -34,6 +34,8 @@ namespace MapReduce
         std::list<MapperTask*> tasks;
         const char *locality_config_filename;
         int num_workers;
+        int num_chunks;
+        int id;
 
         MapperTask *getTaskFor(const int worker_id);
         const int DONE = 0;

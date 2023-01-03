@@ -4,9 +4,10 @@
 
 #include "include/Scheduler.h"
 
-MapReduce::Scheduler::Scheduler(const char *locality_config_filename, const int num_workers) {
+MapReduce::Scheduler::Scheduler(const char *locality_config_filename, const int num_workers, const int scheduler_id) {
     this->locality_config_filename = locality_config_filename;
     this->num_workers = num_workers;
+    this->id = scheduler_id;
 }
 
 void MapReduce::Scheduler::start() {
@@ -21,11 +22,13 @@ void MapReduce::Scheduler::createTasks() {
     int chunk_id;
     int node_id;
 
-    // TODO: parallelize
     while (locality_file >> chunk_id >> node_id) {
         tasks.push_back(new MapperTask(node_id % num_workers, chunk_id));
     }
-    std::cout << tasks.size() << " tasks are created" << std::endl;
+
+    this->num_chunks = tasks.size();
+    // DEBUG
+//    std::cout << this->num_chunks << " tasks are created" << std::endl;
 
     locality_file.close();
 }
@@ -51,6 +54,7 @@ void MapReduce::Scheduler::dispatchTasks() {
             }
         }
     }
+    MPI_Bcast(&num_chunks, 1, MPI_INT, id, MPI_COMM_WORLD);
 }
 
 void MapReduce::Scheduler::terminateWorkers() {

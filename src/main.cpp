@@ -7,7 +7,6 @@ int main(int argc, char** argv) {
     /* srun -N<NODES> -c<CPUS> ./map-reduce JOB_NAME NUM_REDUCER DELAY
     INPUT_FILENAME CHUNK_SIZE LOCALITY_CONFIG_FILENAME OUTPUT_DIR */
     if (argc < 8) {
-        // TODO: throw error
         throw std::invalid_argument("Not enough arguments!");
         return 1;
     }
@@ -29,10 +28,22 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &node_id);
 
     if (node_id == cluster_size - 1) {
-        Scheduler *scheduler = new MapReduce::Scheduler(LOCALITY_CONFIG_FILENAME, cluster_size - 1);
+        // Assign the last node in the cluster as scheduler
+        Scheduler *scheduler = new MapReduce::Scheduler(
+                LOCALITY_CONFIG_FILENAME,
+                cluster_size - 1,
+                cluster_size - 1);
         scheduler->start();
     } else {
-        Worker *worker = new MapReduce::Worker(NUM_REDUCER, NETWORK_DELAY, INPUT_FILENAME, CHUNK_SIZE, node_id, cluster_size - 1);
+        Worker *worker = new MapReduce::Worker(
+                JOB_NAME,
+                NUM_REDUCER,
+                NETWORK_DELAY,
+                INPUT_FILENAME,
+                CHUNK_SIZE,
+                node_id,
+                cluster_size - 1,
+                cluster_size - 1);
         worker->start();
     }
 

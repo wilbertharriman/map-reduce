@@ -61,7 +61,7 @@ namespace MapReduce
     private:
         int _numThreads;
         bool _terminate;
-        const size_t _bufferSize = 10;
+        const size_t _bufferSize = 20;
 
         pthread_t* _threads;
         pthread_mutex_t _mutex;

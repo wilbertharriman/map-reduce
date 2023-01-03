@@ -3,11 +3,12 @@
 //
 
 #include "include/ThreadPool.h"
+#include <iostream>
 
 void *MapReduce::ThreadPool::run(void *args) {
     auto *pool = (ThreadPool*)args;
 
-    while (!pool->_terminate) {
+    while (!pool->_terminate || !pool->_tasks.empty()) {
         ThreadPoolTask* task = pool->removeTask();
 
         if (task != nullptr) {
@@ -25,7 +26,7 @@ MapReduce::ThreadPoolTask *MapReduce::ThreadPool::removeTask() {
         pthread_cond_wait(&_removeCond, &_mutex);
     }
 
-    if (_terminate) {
+    if (_terminate and _tasks.empty()) {
         pthread_mutex_unlock(&_mutex);
         return nullptr;
     }
