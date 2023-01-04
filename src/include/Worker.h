@@ -12,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 #include <map>
+#include <thread>
+#include <chrono>
 #include "ThreadPool.h"
 
 namespace MapReduce {
@@ -24,9 +26,13 @@ namespace MapReduce {
     private:
         class MapperTask {
         public:
-            MapperTask(Worker* worker, int chunk_id) : worker(worker), chunk_id(chunk_id) {}
+            MapperTask(Worker* worker, int chunk_id, int node_id) :
+                worker(worker),
+                chunk_id(chunk_id),
+                node_id(node_id){}
             Worker *worker;
             int chunk_id;
+            int node_id;
         };
         static void* mapTask(void* arg);
         void reduceTask(const int task_num);

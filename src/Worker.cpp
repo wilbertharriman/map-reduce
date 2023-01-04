@@ -31,8 +31,8 @@ void MapReduce::Worker::start() {
         int request_type = 1;
         MPI_Send(&request_type, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
 
-        int message[2];
-        MPI_Recv(message, 2, MPI_INT, scheduler, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int message[3];
+        MPI_Recv(message, 3, MPI_INT, scheduler, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         done = message[0] == DONE;
 
@@ -41,14 +41,11 @@ void MapReduce::Worker::start() {
         }
 
         int chunk_id = message[1];
+        int node_id = message[2];
 
         // Reassemble a mapper task
-        MapperTask *arg = new MapperTask(this, chunk_id);
+        MapperTask *arg = new MapperTask(this, chunk_id, node_id);
         pool->addTask(new ThreadPoolTask(MapReduce::Worker::mapTask, static_cast<void *>(arg)));
-
-        // DEBUG
-//        if (!done)
-//            std::cout << "worker " << this->worker_id << " received chunk " << chunk_id << std::endl;
     }
     pool->terminate();
     pool->join();
@@ -64,7 +61,6 @@ void MapReduce::Worker::start() {
 void MapReduce::Worker::reduceTask(const int task_num) {
     std::multimap<std::string, int> word_count; // TODO: add comparator
     std::map<std::string, int> word_total;
-//    int debug_count = 0;
 
     for (int i = 1; i <= num_chunks; ++i) {
         // read tmp-i_task_num
@@ -77,11 +73,6 @@ void MapReduce::Worker::reduceTask(const int task_num) {
         std::string word;
         int count;
         while (intermediate_file >> word >> count) {
-            // DEBUG
-//            if (word == "acatholic") {
-//                debug_count += count;
-//                std::cout << debug_count << std::endl;
-//            }
             word_count.insert({word, count});
         }
 
@@ -140,8 +131,6 @@ void MapReduce::Worker::inputSplit(std::vector<std::string>& records, const int 
     for (int i = line_offset; i < line_offset + chunk_size; ++i) {
         getline(input_file, line);
         records.push_back(line);
-        // DEBUG
-//        std::cout << line << std::endl;
     }
 
     input_file.close();
@@ -155,9 +144,6 @@ void MapReduce::Worker::map(std::vector<std::string>& records, std::vector<std::
         while (words >> word) {
             size_t partition_id = partition(word);
             word_count[partition_id][word] = word_count[partition_id][word] + 1;
-            if (word == "acatholic") {
-                std::cout << word << std::endl;
-            }
         }
     }
 }
@@ -170,9 +156,15 @@ void* MapReduce::Worker::mapTask(void* arg) {
     MapperTask* task = static_cast<MapperTask *>(arg);
 
     int chunk_id = task->chunk_id;
+    int chunk_location = task->node_id;
     // DEBUG
-//    std::cout << "Map task #" << chunk_id << " starts" << std::endl;
     Worker *worker = task->worker;
+
+    // remote read
+    if (chunk_location != worker->worker_id) {
+//        std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(worker->network_delay));
+    }
     int num_reducer = worker->num_reducer;
 
     std::vector<std::string> records;

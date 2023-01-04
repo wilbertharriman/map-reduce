@@ -23,6 +23,8 @@ void MapReduce::Scheduler::createTasks() {
     int node_id;
 
     while (locality_file >> chunk_id >> node_id) {
+        // DEBUG
+//        std::cout << num_workers << std::endl;
         tasks.push_back(new MapperTask(node_id % num_workers, chunk_id));
     }
 
@@ -40,16 +42,18 @@ void MapReduce::Scheduler::dispatchTasks() {
             MPI_Recv(&request_type, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             MapperTask *task_to_dispatch = getTaskFor(worker_id);
-            int message[2];
+            int message[3];
 
             if (task_to_dispatch == nullptr) {
                 message[0] = DONE;
                 message[1] = DONE;
-                MPI_Send(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
+                message[2] = DONE;
+                MPI_Send(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
             } else {
                 message[0] = JOB;
                 message[1] = task_to_dispatch->chunk_id;
-                MPI_Send(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
+                message[2] = task_to_dispatch->node_id;
+                MPI_Send(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
                 delete task_to_dispatch;
             }
         }
