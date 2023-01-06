@@ -10,6 +10,7 @@
 #include <list>
 #include <mpi.h>
 #include <memory>
+#include "Logger.h"
 #include "ThreadPool.h"
 
 namespace MapReduce
@@ -18,7 +19,7 @@ namespace MapReduce
 
     public:
 //        TODO: LOGGER
-        Scheduler(const char *locality_config_filename, const int num_workers, const int scheduler_id);
+        Scheduler(const std::string& job_name, const char *locality_config_filename, const int num_workers, const int scheduler_id);
         void start();
     private:
         class MapperTask {
@@ -36,6 +37,7 @@ namespace MapReduce
         int num_workers;
         int num_chunks;
         int id;
+        Logger *logger;
 
         MapperTask *getTaskFor(const int worker_id);
         const int DONE = 0;

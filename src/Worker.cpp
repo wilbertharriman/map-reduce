@@ -28,8 +28,8 @@ void MapReduce::Worker::start() {
 
     bool done = false;
     while (!done) {
-        int request_type = 1;
-        MPI_Send(&request_type, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
+        int request = 1;
+        MPI_Send(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
 
         int message[3];
         MPI_Recv(message, 3, MPI_INT, scheduler, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -37,6 +37,9 @@ void MapReduce::Worker::start() {
         done = message[0] == DONE;
 
         if (done) {
+            // Acknowledge task complete
+            MPI_Request req;
+            MPI_Isend(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD, &req);
             break;
         }
 
@@ -57,6 +60,7 @@ void MapReduce::Worker::start() {
     for (int i = worker_id; i < num_reducer; i += num_workers) {
         reduceTask(i);
     }
+    MPI_Barrier(MPI_COMM_WORLD  );
 }
 
 void MapReduce::Worker::reduceTask(const int task_num) {
