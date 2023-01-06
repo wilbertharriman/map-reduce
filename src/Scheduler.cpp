@@ -70,6 +70,7 @@ void MapReduce::Scheduler::terminateWorkers() {
 
         MPI_Isend(message, 2, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 MapReduce::Scheduler::MapperTask* MapReduce::Scheduler::getTaskFor(const int worker_id) {

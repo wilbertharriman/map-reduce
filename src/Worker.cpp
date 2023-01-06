@@ -51,6 +51,7 @@ void MapReduce::Worker::start() {
     pool->join();
 
     MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // Workers are assigned reducer task through round-robin
     for (int i = worker_id; i < num_reducer; i += num_workers) {
