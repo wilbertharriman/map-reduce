@@ -4,7 +4,7 @@
 
 #include "include/Worker.h"
 
-MapReduce::Worker::Worker(const char* job_name, const int num_reducer, const int network_delay, const char* input_filename, const int chunk_size, const int worker_id, const int scheduler_id, const int num_workers) {
+MapReduce::Worker::Worker(const char* job_name, const int num_reducer, const int network_delay, const char* input_filename, const int chunk_size, const int worker_id, const int scheduler_id, const int num_workers, const char* output_dir) {
     this->job_name = job_name;
     this->num_reducer = num_reducer;
     this->network_delay = network_delay;
@@ -16,6 +16,7 @@ MapReduce::Worker::Worker(const char* job_name, const int num_reducer, const int
     this->worker_id = worker_id;
     this->scheduler = scheduler_id;
     this->num_workers = num_workers;
+    this->output_dir = output_dir;
 
     this->pool = new ThreadPool(num_threads);
     this->pool->start();
@@ -89,7 +90,7 @@ void MapReduce::Worker::reduceTask(const int task_num) {
         // read tmp-i_task_num
         std::stringstream ss;
         const std::string FILENAME = "tmp";
-        ss << FILENAME << "-" << i << "_" << task_num <<  ".txt";
+        ss << output_dir << "/" << FILENAME << "-" << i << "_" << task_num <<  ".txt";
 
         std::ifstream intermediate_file(ss.str());
 
@@ -130,7 +131,7 @@ void MapReduce::Worker::reduce(std::multimap<std::string, int>& word_count, std:
 
 void MapReduce::Worker::writeToFile(const int task_num, const std::map<std::string, int>& word_total) {
     std::stringstream ss;
-    ss << job_name << "-" << task_num << ".out";
+    ss << output_dir << "/" << job_name << "-" << task_num << ".out";
 
     std::ofstream outfile(ss.str());
     for (const auto word_total_pair : word_total) {
@@ -185,7 +186,7 @@ void* MapReduce::Worker::mapTask(void* arg) {
 
     // remote read
     if (chunk_location != worker->worker_id) {
-//        std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << std::endl;
+        // std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(worker->network_delay));
     }
     int num_reducer = worker->num_reducer;
@@ -201,7 +202,7 @@ void* MapReduce::Worker::mapTask(void* arg) {
         // generate intermediate files
         std::stringstream ss;
         const std::string FILENAME = "tmp";
-        ss << FILENAME << "-" << chunk_id << "_" << partition_id <<  ".txt";
+        ss << worker->output_dir << "/" << FILENAME << "-" << chunk_id << "_" << partition_id <<  ".txt";
 
         std::ofstream outfile;
         outfile.open(ss.str());

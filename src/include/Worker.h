@@ -20,7 +20,7 @@ namespace MapReduce {
     class Worker {
 //    Delay for D seconds to simulate remote read
     public:
-        Worker(const char* job_name, const int num_reducer, const int network_delay, const char* input_filename, const int chunk_size, const int worker_id, const int scheduler_id, const int num_workers);
+        Worker(const char* job_name, const int num_reducer, const int network_delay, const char* input_filename, const int chunk_size, const int worker_id, const int scheduler_id, const int num_workers, const char* output_dir);
         void start();
 
     private:
@@ -53,6 +53,7 @@ namespace MapReduce {
         const char* input_filename;
         int chunk_size;
         int num_chunks;
+        const char* output_dir;
         ThreadPool *pool;
 
         int num_threads;

@@ -4,21 +4,60 @@
 
 #include "include/Scheduler.h"
 
-MapReduce::Scheduler::Scheduler(const std::string& job_name, const int num_reducer, const char *locality_config_filename, const int num_workers, const int scheduler_id) {
-    this->locality_config_filename = locality_config_filename;
-    this->num_reducer = num_reducer;
-    this->num_workers = num_workers;
-    this->id = scheduler_id;
-    this->logger = new Logger(job_name);
+MapReduce::Scheduler::Scheduler(
+    const char* job_name,
+    int cluster_size,
+    int num_reducer,
+    int network_delay,
+    const char* input_filename,
+    int chunk_size,
+    const char* locality_config_filename,
+    const char* output_dir,
+    int scheduler_id)
+    :
+    job_name(job_name),
+    cluster_size(cluster_size),
+    num_reducer(num_reducer),
+    network_delay(network_delay),
+    input_filename(input_filename),
+    chunk_size(chunk_size),
+    locality_config_filename(locality_config_filename),
+    output_dir(output_dir),
+    scheduler_id(scheduler_id) {
+
+    cpu_set_t cpuSet;
+    sched_getaffinity(0, sizeof(cpuSet), &cpuSet);
+    this->cpu_cores = CPU_COUNT(&cpuSet);
+    this->num_workers = cluster_size - 1;
+
+    int status = mkdir(output_dir, 0777);
+
+    std::stringstream ss;
+    ss << output_dir << "/" << job_name;
+    this->logger = new Logger(ss.str());
 }
 
 void MapReduce::Scheduler::start() {
-    logger->log("Start_Job");
+    double start_time = MPI_Wtime();
+
+    logger->log("Start_Job,%s,%d,%d,%d,%d,%s,%d,%s,%s", 
+        job_name, 
+        cluster_size, 
+        cpu_cores, 
+        num_reducer, 
+        network_delay, 
+        input_filename, 
+        chunk_size, 
+        locality_config_filename, 
+        output_dir);
     createTasks();
     dispatchTasks();
 
     MPI_Barrier(MPI_COMM_WORLD);
-    logger->log("Finish_Job");
+
+    double end_time = MPI_Wtime();
+    int duration = static_cast<int>(end_time - start_time);
+    logger->log("Finish_Job,%d", duration);
 }
 
 void MapReduce::Scheduler::createTasks() {
@@ -28,14 +67,10 @@ void MapReduce::Scheduler::createTasks() {
     int node_id;
 
     while (locality_file >> chunk_id >> node_id) {
-        // DEBUG
-//        std::cout << num_workers << std::endl;
         tasks.push_back(new MapperTask(node_id % num_workers, chunk_id));
     }
 
     this->num_chunks = tasks.size();
-    // DEBUG
-//    std::cout << this->num_chunks << " tasks are created" << std::endl;
 
     locality_file.close();
 }
@@ -57,6 +92,7 @@ void MapReduce::Scheduler::dispatchTasks() {
 
         if (worker_task[worker_id] != -1) {
             double end_time = MPI_Wtime();
+            // std::cout << end_time - worker_start_time[worker_id] << std::endl;
             int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
             logger->log("Complete_MapTask,%d,%d", worker_task[worker_id], duration);
             worker_task[worker_id] = -1;
@@ -80,6 +116,7 @@ void MapReduce::Scheduler::dispatchTasks() {
             logger->log("Dispatch_MapTask,%d,%d", task_to_dispatch->chunk_id, worker_id);
             worker_task[worker_id] = task_to_dispatch->chunk_id;
             worker_start_time[worker_id] = MPI_Wtime();
+
             MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &mpi_req);
 
             delete task_to_dispatch;
@@ -90,6 +127,7 @@ void MapReduce::Scheduler::dispatchTasks() {
             int ack;
             MPI_Recv(&ack, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             double end_time = MPI_Wtime();
+            // std::cout << end_time - worker_start_time[worker_id] << std::endl;
             int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
             logger->log("Complete_MapTask,%d,%d", worker_task[worker_id], duration);
 
@@ -106,7 +144,7 @@ void MapReduce::Scheduler::dispatchTasks() {
         }
     }
 
-    MPI_Bcast(&num_chunks, 1, MPI_INT, id, MPI_COMM_WORLD);
+    MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler_id, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
     for (int task_id = 0; task_id < num_reducer; ++task_id) {

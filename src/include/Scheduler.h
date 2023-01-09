@@ -6,10 +6,11 @@
 #define MAP_REDUCE_SCHEDULER_H
 
 #include <iostream>
+#include <sys/stat.h>
 #include <fstream>
+#include <sstream>
 #include <list>
 #include <mpi.h>
-#include <memory>
 #include "Logger.h"
 #include "ThreadPool.h"
 
@@ -18,8 +19,16 @@ namespace MapReduce
     class Scheduler {
 
     public:
-//        TODO: LOGGER
-        Scheduler(const std::string& job_name, const int num_reducer, const char *locality_config_filename, const int num_workers, const int scheduler_id);
+        Scheduler(
+            const char* job_name,
+            int cluster_size,
+            int num_reducer,
+            int delay,
+            const char* input_filename,
+            int chunk_size,
+            const char* locality_config_filename,
+            const char* output_dir,
+            int scheduler_id);
         void start();
     private:
         class MapperTask {
@@ -33,16 +42,25 @@ namespace MapReduce
         void dispatchTasks();
         void terminateWorkers();
         std::list<MapperTask*> tasks;
-        const char *locality_config_filename;
-        int num_reducer;
-        int num_workers;
-        int num_chunks;
-        int id;
-        Logger *logger;
 
         MapperTask *getTaskFor(const int worker_id);
         const int DONE = 0;
         const int JOB = 1;
+
+        Logger *logger;
+        int num_workers;
+        int num_chunks;
+        int cpu_cores;
+
+        const char* job_name;
+        int cluster_size;
+        int num_reducer;
+        int network_delay;
+        const char* input_filename;
+        int chunk_size;
+        const char* locality_config_filename;
+        const char* output_dir;
+        int scheduler_id;
     };
 }
 

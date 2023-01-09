@@ -31,10 +31,14 @@ int main(int argc, char** argv) {
         // Assign the last node in the cluster as scheduler
         Scheduler *scheduler = new MapReduce::Scheduler(
                 JOB_NAME,
+                cluster_size,
                 NUM_REDUCER,
+                NETWORK_DELAY,
+                INPUT_FILENAME,
+                CHUNK_SIZE,
                 LOCALITY_CONFIG_FILENAME,
-                cluster_size - 1,
-                cluster_size - 1);
+                OUTPUT_DIR,
+                node_id);
         scheduler->start();
     } else {
         Worker *worker = new MapReduce::Worker(
@@ -45,7 +49,8 @@ int main(int argc, char** argv) {
                 CHUNK_SIZE,
                 node_id,
                 cluster_size - 1,
-                cluster_size - 1);
+                cluster_size - 1,
+                OUTPUT_DIR);
         worker->start();
     }
 
