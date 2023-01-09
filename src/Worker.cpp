@@ -56,11 +56,34 @@ void MapReduce::Worker::start() {
     MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    // Workers are assigned reducer task through round-robin
-    for (int i = worker_id; i < num_reducer; i += num_workers) {
-        reduceTask(i);
+    bool reducer_done = false;
+
+    while (!reducer_done) {
+        int request = 2;
+        MPI_Send(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
+
+        int message[3];
+        MPI_Recv(message, 3, MPI_INT, scheduler, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        reducer_done = message[0] == DONE;
+
+        if (reducer_done) {
+            // Acknowledge task complete
+            MPI_Request req;
+            MPI_Isend(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD, &req);
+            break;
+        }
+
+        int task_id = message[1];
+
+        reduceTask(task_id);
     }
-    MPI_Barrier(MPI_COMM_WORLD  );
+
+    // Workers are assigned reducer task through round-robin
+    // for (int i = worker_id; i < num_reducer; i += num_workers) {
+    //     reduceTask(i);
+    // }
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 void MapReduce::Worker::reduceTask(const int task_num) {

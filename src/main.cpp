@@ -31,6 +31,7 @@ int main(int argc, char** argv) {
         // Assign the last node in the cluster as scheduler
         Scheduler *scheduler = new MapReduce::Scheduler(
                 JOB_NAME,
+                NUM_REDUCER,
                 LOCALITY_CONFIG_FILENAME,
                 cluster_size - 1,
                 cluster_size - 1);

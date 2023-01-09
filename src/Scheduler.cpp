@@ -4,8 +4,9 @@
 
 #include "include/Scheduler.h"
 
-MapReduce::Scheduler::Scheduler(const std::string& job_name, const char *locality_config_filename, const int num_workers, const int scheduler_id) {
+MapReduce::Scheduler::Scheduler(const std::string& job_name, const int num_reducer, const char *locality_config_filename, const int num_workers, const int scheduler_id) {
     this->locality_config_filename = locality_config_filename;
+    this->num_reducer = num_reducer;
     this->num_workers = num_workers;
     this->id = scheduler_id;
     this->logger = new Logger(job_name);
@@ -15,7 +16,7 @@ void MapReduce::Scheduler::start() {
     logger->log("Start_Job");
     createTasks();
     dispatchTasks();
-    terminateWorkers();
+
     MPI_Barrier(MPI_COMM_WORLD);
     logger->log("Finish_Job");
 }
@@ -40,18 +41,22 @@ void MapReduce::Scheduler::createTasks() {
 }
 
 void MapReduce::Scheduler::dispatchTasks() {
-    int worker_task[num_workers] = {0};
+    int worker_task[num_workers];
     double worker_start_time[num_workers] = {0};
+
+    for (int i = 0; i < num_workers; ++i) {
+        worker_task[i] = -1;
+    }
 
     while (!tasks.empty()) {
         for (int worker_id = 0; worker_id < num_workers; ++worker_id) {
             int request; // 1: mapper thread or 2: reducer thread
             MPI_Recv(&request, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            if (worker_task[worker_id] != 0) {
+            if (worker_task[worker_id] != -1) {
                 double end_time = MPI_Wtime();
                 int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
                 logger->log("Complete_MapTask,%d,%d", worker_task[worker_id], duration);
-                worker_task[worker_id] = 0;
+                worker_task[worker_id] = -1;
                 worker_start_time[worker_id] = 0;
             }
 
@@ -70,6 +75,9 @@ void MapReduce::Scheduler::dispatchTasks() {
 
                 logger->log("Dispatch_MapTask,%d,%d", task_to_dispatch->chunk_id, worker_id);
                 worker_task[worker_id] = task_to_dispatch->chunk_id;
+                if (task_to_dispatch->chunk_id == 0) {
+                    std::cout << "What" << std::endl;
+                }
                 worker_start_time[worker_id] = MPI_Wtime();
                 MPI_Send(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
 
@@ -78,18 +86,78 @@ void MapReduce::Scheduler::dispatchTasks() {
         }
     }
     for (int worker_id = 0; worker_id < num_workers; ++worker_id) {
-        if (worker_task[worker_id] != 0) {
+        if (worker_task[worker_id] != -1) {
             int ack;
             MPI_Recv(&ack, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             double end_time = MPI_Wtime();
             int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
             logger->log("Complete_MapTask,%d,%d", worker_task[worker_id], duration);
-            worker_task[worker_id] = 0;
+
+            worker_task[worker_id] = -1;
             worker_start_time[worker_id] = 0;
+
+            int message[3];
+            message[0] = DONE;
+            message[1] = DONE;
+            message[2] = DONE;
+            
+            MPI_Request request;
+            MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
         }
     }
 
     MPI_Bcast(&num_chunks, 1, MPI_INT, id, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    for (int task_id = 0; task_id < num_reducer; ++task_id) {
+        int request; // 1: mapper thread or 2: reducer thread
+        MPI_Status status;
+        MPI_Recv(&request, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &status);
+
+        int worker_id = status.MPI_SOURCE;
+
+        if (worker_task[worker_id] != -1) {
+            double end_time = MPI_Wtime();
+            int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
+            logger->log("Complete_ReduceTask,%d,%d", worker_task[worker_id], duration);
+            worker_task[worker_id] = -1;
+            worker_start_time[worker_id] = 0;
+        }
+
+        int message[3];
+        message[0] = JOB;
+        message[1] = task_id;
+        message[2] = task_id;
+
+        logger->log("Dispatch_ReduceTask,%d,%d", task_id, worker_id);
+        worker_task[worker_id] = task_id;
+        worker_start_time[worker_id] = MPI_Wtime();
+
+        MPI_Send(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD);
+    }
+
+    for (int worker_id = 0; worker_id < num_workers; ++worker_id) {
+        if (worker_task[worker_id] != -1) {
+            int ack;
+            MPI_Recv(&ack, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            double end_time = MPI_Wtime();
+            int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
+            logger->log("Complete_ReduceTask,%d,%d", worker_task[worker_id], duration);
+
+            worker_task[worker_id] = -1;
+            worker_start_time[worker_id] = 0;
+
+            int message[3];
+            message[0] = DONE;
+            message[1] = DONE;
+            message[2] = DONE;
+            
+            MPI_Request request;
+            MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
+        }
+    }
+
+    terminateWorkers();
 }
 
 void MapReduce::Scheduler::terminateWorkers() {
@@ -102,7 +170,6 @@ void MapReduce::Scheduler::terminateWorkers() {
 
         MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 MapReduce::Scheduler::MapperTask* MapReduce::Scheduler::getTaskFor(const int worker_id) {
