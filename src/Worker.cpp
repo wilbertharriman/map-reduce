@@ -78,11 +78,6 @@ void MapReduce::Worker::start() {
 
         reduceTask(task_id);
     }
-
-    // Workers are assigned reducer task through round-robin
-    // for (int i = worker_id; i < num_reducer; i += num_workers) {
-    //     reduceTask(i);
-    // }
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
