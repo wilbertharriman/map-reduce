@@ -10,7 +10,9 @@
 #include <fstream>
 #include <sstream>
 #include <list>
+#include <map>
 #include <mpi.h>
+#include <ctime>
 #include "Logger.h"
 #include "ThreadPool.h"
 
@@ -38,8 +40,13 @@ namespace MapReduce
             int chunk_id;
         };
 
+        size_t partition(const std::string& word);
+
         void createTasks();
-        void dispatchTasks();
+        void dispatchMapperTasks();
+        int analyzeIntermediateFiles();
+        void shuffle();
+        void dispatchReducerTasks();
         void terminateWorkers();
         std::list<MapperTask*> tasks;
 

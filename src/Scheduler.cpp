@@ -51,13 +51,90 @@ void MapReduce::Scheduler::start() {
         locality_config_filename, 
         output_dir);
     createTasks();
-    dispatchTasks();
-
+    dispatchMapperTasks();
+    MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler_id, MPI_COMM_WORLD);
+    // Wait for all mapper tasks to finish
     MPI_Barrier(MPI_COMM_WORLD);
 
+    int total_kv_pair = analyzeIntermediateFiles();
+
+    logger->log("Start_Shuffle,%d", total_kv_pair);
+    auto now = std::chrono::system_clock::now();
+    long shuffle_start_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    shuffle();
+    now = std::chrono::system_clock::now();
+    long shuffle_end_time = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();;
+    long shuffle_duration = shuffle_end_time - shuffle_start_time; // ms
+    logger->log("Finish_Shuffle,%d", shuffle_duration);
+
+    dispatchReducerTasks();
+    terminateWorkers();
+
+    MPI_Barrier(MPI_COMM_WORLD);
     double end_time = MPI_Wtime();
     int duration = static_cast<int>(end_time - start_time);
     logger->log("Finish_Job,%d", duration);
+}
+
+size_t MapReduce::Scheduler::partition(const std::string& word) {
+    return std::hash<std::string>{}(word) % num_reducer;
+}
+
+int MapReduce::Scheduler::analyzeIntermediateFiles() {
+    const std::string FILENAME = "tmp";
+    int total_key_value_pair = 0;
+    for (int chunk_id = 1; chunk_id <= num_chunks; ++chunk_id) {
+        std::stringstream ss;
+        ss << output_dir << "/" << FILENAME << "-" << chunk_id <<  ".txt";
+
+        std::ifstream intermediate_file(ss.str());
+
+        std::string word;
+        int count;
+        while (intermediate_file >> word >> count) {
+            ++total_key_value_pair;
+        }
+
+        intermediate_file.close();
+    }
+    return total_key_value_pair;
+}
+
+void MapReduce::Scheduler::shuffle() {
+    std::vector<std::multimap<std::string, int>> word_count;
+    word_count.resize(num_reducer);
+
+    const std::string FILENAME = "tmp";
+    for (int chunk_id = 1; chunk_id <= num_chunks; ++chunk_id) {
+        std::stringstream ss;
+        ss << output_dir << "/" << FILENAME << "-" << chunk_id <<  ".txt";
+
+        std::ifstream intermediate_file(ss.str());
+
+        std::string word;
+        int count;
+        while (intermediate_file >> word >> count) {
+            size_t partition_id = partition(word);
+            word_count[partition_id].insert({word, count});
+        }
+
+        intermediate_file.close();
+        std::remove(ss.str().c_str());
+    }
+
+    for (int partition_id = 0; partition_id < num_reducer; ++partition_id) {
+        // open a file
+        std::stringstream ss;
+        ss << output_dir << "/" << "part" << "-" << partition_id << ".txt";
+        std::ofstream partition_file(ss.str());
+
+        for (auto it = word_count[partition_id].begin(); it != word_count[partition_id].end(); ++it) {
+            std::string word = it->first;
+            int count = it->second;
+            partition_file << word << " " << count << std::endl;
+        }
+        partition_file.close();
+    }
 }
 
 void MapReduce::Scheduler::createTasks() {
@@ -75,7 +152,7 @@ void MapReduce::Scheduler::createTasks() {
     locality_file.close();
 }
 
-void MapReduce::Scheduler::dispatchTasks() {
+void MapReduce::Scheduler::dispatchMapperTasks() {
     int worker_task[num_workers];
     double worker_start_time[num_workers] = {0};
 
@@ -143,9 +220,15 @@ void MapReduce::Scheduler::dispatchTasks() {
             MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
         }
     }
+}
 
-    MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler_id, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
+void MapReduce::Scheduler::dispatchReducerTasks() {
+    int worker_task[num_workers];
+    double worker_start_time[num_workers] = {0};
+
+    for (int i = 0; i < num_workers; ++i) {
+        worker_task[i] = -1;
+    }
 
     for (int task_id = 0; task_id < num_reducer; ++task_id) {
         int request; // 1: mapper thread or 2: reducer thread
@@ -195,8 +278,6 @@ void MapReduce::Scheduler::dispatchTasks() {
             MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
         }
     }
-
-    terminateWorkers();
 }
 
 void MapReduce::Scheduler::terminateWorkers() {

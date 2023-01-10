@@ -37,7 +37,7 @@ namespace MapReduce {
         static void* mapTask(void* arg);
         void reduceTask(const int task_num);
         void inputSplit(std::vector<std::string>& records , const int chunk_id);
-        void map(std::vector<std::string>& records, std::vector<std::unordered_map<std::string, int>>& word_count);
+        void map(std::vector<std::string>& records, std::unordered_map<std::string, int>& word_count);
         size_t partition(const std::string& word);
         void writeToFile(const int task_num, const std::map<std::string, int> &word_total);
 
