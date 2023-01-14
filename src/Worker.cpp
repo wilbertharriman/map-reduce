@@ -82,9 +82,19 @@ void MapReduce::Worker::start() {
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
+bool compare(std::pair<std::string, int>& a, std::pair<std::string, int>& b) {
+    return a.first > b.first;
+}
+
+void MapReduce::Worker::sortWords(std::vector<std::pair<std::string, int>>& word_count) {
+    sort(word_count.begin(), word_count.end(), [](std::pair<std::string, int>& a, std::pair<std::string, int>& b) {
+        return a.first < b.first;
+    });
+}
+
 void MapReduce::Worker::reduceTask(const int task_num) {
-    std::multimap<std::string, int> word_count; // TODO: add comparator
-    std::map<std::string, int> word_total;
+    std::vector<std::pair<std::string, int>> word_count;
+    std::vector<std::pair<std::string, int>> word_total;
 
     // read part-task_num
     std::stringstream ss;
@@ -96,21 +106,22 @@ void MapReduce::Worker::reduceTask(const int task_num) {
     std::string word;
     int count;
     while (intermediate_file >> word >> count) {
-        word_count.insert({word, count});
+        word_count.push_back({word, count});
     }
+
+    sortWords(word_count);
 
     intermediate_file.close();
     // remove intermediate file
     std::remove(ss.str().c_str());
 
-
     reduce(word_count, word_total);
     writeToFile(task_num, word_total);
 }
 
-void MapReduce::Worker::group(std::multimap<std::string, int>::iterator& it,
-                              std::multimap<std::string, int>& word_count,
-                              std::map<std::string, int>& word_total) {
+void MapReduce::Worker::group(std::vector<std::pair<std::string, int>>::iterator& it,
+                              std::vector<std::pair<std::string, int>>& word_count,
+                              std::vector<std::pair<std::string, int>>& word_total) {
     std::string word = (*it).first;
     int total = (*it).second;
     ++it;
@@ -119,16 +130,16 @@ void MapReduce::Worker::group(std::multimap<std::string, int>::iterator& it,
         ++it;
     }
     // append to word_total
-    word_total[word] = total;
+    word_total.push_back({word, total});
 }
 
-void MapReduce::Worker::reduce(std::multimap<std::string, int>& word_count, std::map<std::string, int>& word_total) {
+void MapReduce::Worker::reduce(std::vector<std::pair<std::string, int>>& word_count, std::vector<std::pair<std::string, int>>& word_total) {
     for (auto it = word_count.begin(); it != word_count.end();) {
         group(it, word_count, word_total);
     }
 }
 
-void MapReduce::Worker::writeToFile(const int task_num, const std::map<std::string, int>& word_total) {
+void MapReduce::Worker::writeToFile(const int task_num, const std::vector<std::pair<std::string, int>>& word_total) {
     std::stringstream ss;
     ss << output_dir << "/" << job_name << "-" << task_num << ".out";
 
@@ -164,11 +175,6 @@ void MapReduce::Worker::map(std::vector<std::string>& records, std::unordered_ma
         std::stringstream words(line);
         std::string word;
 
-        // while (words >> word) {
-        //     size_t partition_id = partition(word);
-        //     word_count[partition_id][word] = word_count[partition_id][word] + 1;
-        // }
-
         while (words >> word) {
             word_count[word] = word_count[word] + 1;
         }
@@ -184,7 +190,6 @@ void* MapReduce::Worker::mapTask(void* arg) {
 
     int chunk_id = task->chunk_id;
     int chunk_location = task->node_id;
-    // DEBUG
     Worker *worker = task->worker;
 
     // remote read
@@ -195,28 +200,11 @@ void* MapReduce::Worker::mapTask(void* arg) {
     int num_reducer = worker->num_reducer;
 
     std::vector<std::string> records;
-    // std::vector<std::unordered_map<std::string, int>> word_count;
     std::unordered_map<std::string, int> word_count;
-    // word_count.resize(num_reducer);
 
     worker->inputSplit(records, chunk_id);
     worker->map(records, word_count);
 
-    // for (int partition_id = 0; partition_id < num_reducer; ++partition_id) {
-    //     // generate intermediate files
-    //     std::stringstream ss;
-    //     const std::string FILENAME = "tmp";
-    //     ss << worker->output_dir << "/" << FILENAME << "-" << chunk_id << "_" << partition_id <<  ".txt";
-
-    //     std::ofstream outfile;
-    //     outfile.open(ss.str());
-
-    //     for (auto it = word_count[partition_id].begin(); it != word_count[partition_id].end(); ++it) {
-    //         outfile << (*it).first << " " << (*it).second << std::endl;
-    //     }
-    //     outfile.close();
-    // }
-    
     std::stringstream ss;
     const std::string FILENAME = "tmp";
     ss << worker->output_dir << "/" << FILENAME << "-" << chunk_id << ".txt";

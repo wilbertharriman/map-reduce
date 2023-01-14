@@ -14,6 +14,7 @@
 #include <map>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 #include "ThreadPool.h"
 
 namespace MapReduce {
@@ -39,12 +40,15 @@ namespace MapReduce {
         void inputSplit(std::vector<std::string>& records , const int chunk_id);
         void map(std::vector<std::string>& records, std::unordered_map<std::string, int>& word_count);
         size_t partition(const std::string& word);
-        void writeToFile(const int task_num, const std::map<std::string, int> &word_total);
+        void writeToFile(const int task_num, const std::vector<std::pair<std::string, int>> &word_total);
 
-        void group(std::multimap<std::string, int>::iterator& it,
-                   std::multimap<std::string, int>& word_count,
-                   std::map<std::string, int>& word_total);
-        void reduce(std::multimap<std::string, int>& word_count, std::map<std::string, int>& word_total);
+
+        void sortWords(std::vector<std::pair<std::string, int>>& word_count);
+        void group(std::vector<std::pair<std::string, int>>::iterator& it,
+                   std::vector<std::pair<std::string, int>>& word_count,
+                   std::vector<std::pair<std::string, int>>& word_total);
+
+        void reduce(std::vector<std::pair<std::string, int>>& word_count, std::vector<std::pair<std::string, int>>& word_total);
 
         void remote_read_delay();
         std::string job_name;
