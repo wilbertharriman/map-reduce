@@ -224,7 +224,7 @@ void* MapReduce::Worker::mapTask(void* arg) {
 
     // remote read
     if (chunk_location != worker->worker_id) {
-        std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << " for task " << chunk_id << std::endl;
+        // std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << " for task " << chunk_id << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(worker->network_delay));
     }
     int num_reducer = worker->num_reducer;

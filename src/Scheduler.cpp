@@ -155,7 +155,6 @@ void MapReduce::Scheduler::createTasks() {
 void MapReduce::Scheduler::dispatchMapperTasks() {
     bool finished_tasks[num_chunks + 1];
     double task_start_time[num_chunks + 1] = {0};
-    // std::cout << num_chunks << std::endl;
 
     for (int i = 0; i <= num_chunks; ++i) {
         finished_tasks[i] = false;
@@ -223,32 +222,6 @@ void MapReduce::Scheduler::dispatchMapperTasks() {
             }
         }
     }
-    // for (int task_id = 1; task_id <= num_chunks; ++task_id) {
-    //     if (!task_finished[task_id]) {
-
-    //     }
-    // }
-    // for (int worker_id = 0; worker_id < num_workers; ++worker_id) {
-    //     if (worker_task[worker_id] != -1) {
-    //         int ack;
-    //         MPI_Recv(&ack, 1, MPI_INT, worker_id, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    //         double end_time = MPI_Wtime();
-    //         // std::cout << end_time - worker_start_time[worker_id] << std::endl;
-    //         int duration = static_cast<int>(end_time - worker_start_time[worker_id]);
-    //         logger->log("Complete_MapTask,%d,%d", worker_task[worker_id], duration);
-
-    //         worker_task[worker_id] = -1;
-    //         worker_start_time[worker_id] = 0;
-
-    //         int message[3];
-    //         message[0] = DONE;
-    //         message[1] = DONE;
-    //         message[2] = DONE;
-            
-    //         MPI_Request request;
-    //         MPI_Isend(message, 3, MPI_INT, worker_id, 0, MPI_COMM_WORLD, &request);
-    //     }
-    // }
 }
 
 void MapReduce::Scheduler::dispatchReducerTasks() {
