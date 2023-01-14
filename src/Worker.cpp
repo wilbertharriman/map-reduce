@@ -22,15 +22,33 @@ MapReduce::Worker::Worker(const char* job_name, const int num_reducer, const int
     this->pool->start();
 }
 
+void MapReduce::Worker::setTaskComplete(int task_id) {
+    tasks[task_id] = 1;
+}
+
 void MapReduce::Worker::start() {
-    // define
-    // 0: done signal
-    // 1: map task
+    MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler, MPI_COMM_WORLD);
+
+    this->tasks = new int[num_chunks + 1];
+
+    for (int i = 0; i <= num_chunks; ++i) {
+        tasks[i] = -1;
+    }
 
     bool done = false;
     while (!done) {
-        int request = 1;
-        MPI_Send(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
+        int finished_task = -1;
+
+        // Report back any finish task
+        for (int i = 1; i <= num_chunks; ++i) {
+            if (tasks[i] == 1) {
+                tasks[i] = -1;
+                finished_task = i;
+                break;
+            }
+        }
+
+        MPI_Send(&finished_task, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD);
 
         int message[3];
         MPI_Recv(message, 3, MPI_INT, scheduler, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -38,14 +56,27 @@ void MapReduce::Worker::start() {
         done = message[0] == DONE;
 
         if (done) {
-            // Acknowledge task complete
-            MPI_Request req;
-            MPI_Isend(&request, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD, &req);
+            // Acknowledge tasks complete
+            bool tasks_not_done = true;
+            while (tasks_not_done) {
+                tasks_not_done = false;
+                for (int task_num = 1; task_num <= num_chunks; ++task_num) {
+                    if (tasks[task_num] == 1) {
+                        tasks[task_num] = -1;
+                        MPI_Request req;
+                        MPI_Isend(&task_num, 1, MPI_INT, scheduler, 0, MPI_COMM_WORLD, &req);
+                    } else if (tasks[task_num] == 0) {
+                        tasks_not_done = true;
+                    }
+                } 
+            }
             break;
         }
 
         int chunk_id = message[1];
         int node_id = message[2];
+
+        tasks[chunk_id] = 0;
 
         // Reassemble a mapper task
         MapperTask *arg = new MapperTask(this, chunk_id, node_id);
@@ -54,7 +85,6 @@ void MapReduce::Worker::start() {
     pool->terminate();
     pool->join();
 
-    MPI_Bcast(&num_chunks, 1, MPI_INT, scheduler, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
     bool reducer_done = false;
@@ -194,7 +224,7 @@ void* MapReduce::Worker::mapTask(void* arg) {
 
     // remote read
     if (chunk_location != worker->worker_id) {
-        // std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << std::endl;
+        std::cout << "Fetching data chunk from node " << chunk_location << " to node " << worker->worker_id << " for task " << chunk_id << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(worker->network_delay));
     }
     int num_reducer = worker->num_reducer;
@@ -215,5 +245,6 @@ void* MapReduce::Worker::mapTask(void* arg) {
     }
     outfile.close();
 
+    worker->setTaskComplete(chunk_id);
     return nullptr;
 }

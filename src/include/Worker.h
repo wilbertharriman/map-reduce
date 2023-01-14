@@ -19,7 +19,6 @@
 
 namespace MapReduce {
     class Worker {
-//    Delay for D seconds to simulate remote read
     public:
         Worker(const char* job_name, const int num_reducer, const int network_delay, const char* input_filename, const int chunk_size, const int worker_id, const int scheduler_id, const int num_workers, const char* output_dir);
         void start();
@@ -38,6 +37,7 @@ namespace MapReduce {
         static void* mapTask(void* arg);
         void reduceTask(const int task_num);
         void inputSplit(std::vector<std::string>& records , const int chunk_id);
+        void setTaskComplete(int chunk_id);
         void map(std::vector<std::string>& records, std::unordered_map<std::string, int>& word_count);
         size_t partition(const std::string& word);
         void writeToFile(const int task_num, const std::vector<std::pair<std::string, int>> &word_total);
@@ -64,6 +64,7 @@ namespace MapReduce {
         int worker_id;
         int scheduler;
         int num_workers;
+        int *tasks;
 
         const int DONE = 0;
         const int JOB = 1;
