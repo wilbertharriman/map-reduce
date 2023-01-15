@@ -5,6 +5,6 @@ set(CMAKE_CXX_STANDARD 11)
 
 find_package(MPI REQUIRED)
 
-add_executable(map_reduce src/main.cpp src/Scheduler.cpp src/include/Scheduler.h src/Worker.cpp src/include/Worker.h src/ThreadPool.cpp src/include/ThreadPool.h)
+add_executable(map_reduce src/main.cc src/Scheduler.cc src/include/Scheduler.h src/Worker.cc src/include/Worker.h src/ThreadPool.cc src/include/ThreadPool.h)
 
 target_link_libraries(map_reduce PUBLIC MPI::MPI_CXX)
